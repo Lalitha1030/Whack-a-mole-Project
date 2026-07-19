@@ -1,79 +1,193 @@
- // DOM Elements
-        const holes = document.querySelectorAll('.hole');
-        const scoreDisplay = document.getElementById('score');
-        const timeDisplay = document.getElementById('time');
-        const startButton = document.getElementById('start-btn');
+const holes = Array.from(document.querySelectorAll('.hole'));
+const moles = Array.from(document.querySelectorAll('.mole'));
+const scoreDisplay = document.getElementById('score');
+const timerDisplay = document.getElementById('timer');
+const startButton = document.getElementById('start');
 
-        // Game Tracking states
-        let score = 0;
-        let timeLeft = 20;
-        let gameInterval;
-        let countdownInterval;
-        let activeHole = null;
-        let isGameRunning = false;
+let points = 0;
+let duration = 0;
+let timerIntervalId = null;
+let activeTimeoutId = null;
+let activeHole = null;
+let gameRunning = false;
+let currentDifficulty = 'normal';
 
-        // Reset elements and start timer strings
-        function startGame() {
-            if (isGameRunning) return; // Block double starts
-            isGameRunning = true;
-            score = 0;
-            timeLeft = 20;
-            scoreDisplay.textContent = score;
-            timeDisplay.textContent = timeLeft;
-            startButton.disabled = true;
+window.holes = holes;
 
-            // Loop to pop up moles every 800ms
-            gameInterval = setInterval(peepMole, 800);
-            // Game clock countdown tracking
-            countdownInterval = setInterval(updateTimer, 1000);
-        }
+function randomInteger(min, max) {
+    return Math.floor(Math.random() * (max - min + 1)) + min;
+}
 
-        // Logic to clear existing mole visual states and pick next hole
-        function peepMole() {
-            // Remove previous active mole state
-            if (activeHole) {
-                activeHole.classList.remove('up');
+function setDelay(difficulty) {
+    if (difficulty === 'easy') {
+        return 1500;
+    }
+    if (difficulty === 'normal') {
+        return 1000;
+    }
+    if (difficulty === 'hard') {
+        return randomInteger(600, 1200);
+    }
+    return 1000;
+}
+
+function chooseHole(holeList) {
+    const list = Array.isArray(holeList) ? holeList : Array.from(holeList || []);
+    if (!list.length) return null;
+    return list[Math.floor(Math.random() * list.length)];
+}
+
+function toggleVisibility(hole) {
+    if (hole) {
+        hole.classList.toggle('show');
+    }
+    return hole;
+}
+
+function showAndHide(hole, delay) {
+    toggleVisibility(hole);
+    return window.setTimeout(() => {
+        toggleVisibility(hole);
+    }, delay);
+}
+
+function showUp(difficulty = 'normal') {
+    if (activeHole) {
+        activeHole.classList.remove('show');
+    }
+
+    const hole = chooseHole(holes);
+    if (hole) {
+        activeHole = hole;
+        toggleVisibility(hole);
+        const delay = setDelay(difficulty);
+        clearTimeout(activeTimeoutId);
+        activeTimeoutId = window.setTimeout(() => {
+            if (activeHole === hole) {
+                toggleVisibility(hole);
+                activeHole = null;
             }
-
-            // Pick a random grid position
-            const randomIndex = Math.floor(Math.random() * holes.length);
-            activeHole = holes[randomIndex];
-            
-            // Pop the mole up visually
-            activeHole.classList.add('up');
-        }
-
-        // Handle score addition when clicking the mole element
-        function whack(e) {
-            // Security check against synthetic script-simulated clicks
-            if(!e.isTrusted) return; 
-            
-            // Validate the parent container currently has the active class
-            if (this.parentNode.classList.contains('up')) {
-                score++;
-                scoreDisplay.textContent = score;
-                this.parentNode.classList.remove('up'); // Force mole back down immediately
+            if (gameRunning) {
+                showUp(difficulty);
             }
-        }
+        }, delay);
+        return activeTimeoutId;
+    }
+    return 0;
+}
 
-        // Countdown system 
-        function updateTimer() {
-            timeLeft--;
-            timeDisplay.textContent = timeLeft;
+function setDuration(seconds) {
+    duration = seconds;
+    if (timerDisplay) {
+        timerDisplay.textContent = duration;
+    }
+    return duration;
+}
 
-            if (timeLeft <= 0) {
-                clearInterval(gameInterval);
-                clearInterval(countdownInterval);
-                if (activeHole) activeHole.classList.remove('up');
-                
-                isGameRunning = false;
-                startButton.disabled = false;
-                alert(`Game Over! Final Score: ${score}`);
-            }
-        }
+function startTimer() {
+    clearInterval(timerIntervalId);
+    timerIntervalId = window.setInterval(updateTimer, 1000);
+    return timerIntervalId;
+}
 
-        // Event Listeners Allocation
-        startButton.addEventListener('click', startGame);
-        document.querySelectorAll('.mole').forEach(mole => {
-            mole.addEventListener('click', whack);
-        });
+function updateTimer() {
+    if (duration <= 0) {
+        clearInterval(timerIntervalId);
+        return;
+    }
+
+    duration -= 1;
+    if (timerDisplay) {
+        timerDisplay.textContent = duration;
+    }
+
+    if (duration <= 0) {
+        clearInterval(timerIntervalId);
+        gameOver();
+    }
+}
+
+function startGame() {
+    gameRunning = true;
+    currentDifficulty = 'normal';
+    setDuration(20);
+    clearScore();
+    setEventListeners();
+    showUp();
+    startTimer();
+    return 'game started';
+}
+
+function gameOver() {
+    gameRunning = false;
+    clearInterval(timerIntervalId);
+    clearTimeout(activeTimeoutId);
+    if (activeHole) {
+        activeHole.classList.remove('show');
+        activeHole = null;
+    }
+    if (duration <= 0) {
+        return 'game stopped';
+    }
+    return showUp();
+}
+
+function updateScore() {
+    points += 1;
+    if (scoreDisplay) {
+        scoreDisplay.textContent = points;
+    }
+    return points;
+}
+
+function clearScore() {
+    points = 0;
+    if (scoreDisplay) {
+        scoreDisplay.textContent = points;
+    }
+    return points;
+}
+
+function whack(event) {
+    if (event && event.preventDefault) {
+        event.preventDefault();
+    }
+
+    if (activeHole && activeHole.classList.contains('show')) {
+        activeHole.classList.remove('show');
+        activeHole = null;
+    }
+
+    updateScore();
+    return points;
+}
+
+function setEventListeners() {
+    moles.forEach((mole) => {
+        mole.onclick = whack;
+    });
+
+    if (startButton) {
+        startButton.onclick = () => startGame();
+    }
+}
+
+window.randomInteger = randomInteger;
+window.setDelay = setDelay;
+window.chooseHole = chooseHole;
+window.toggleVisibility = toggleVisibility;
+window.showAndHide = showAndHide;
+window.showUp = showUp;
+window.startGame = startGame;
+window.gameOver = gameOver;
+window.setDuration = setDuration;
+window.updateScore = updateScore;
+window.clearScore = clearScore;
+window.whack = whack;
+window.setEventListeners = setEventListeners;
+
+window.addEventListener('DOMContentLoaded', () => {
+    setDuration(0);
+    clearScore();
+    setEventListeners();
+});
