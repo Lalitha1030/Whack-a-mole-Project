@@ -3,6 +3,7 @@ const moles = Array.from(document.querySelectorAll('.mole'));
 const scoreDisplay = document.getElementById('score');
 const timerDisplay = document.getElementById('timer');
 const startButton = document.getElementById('start');
+const restartButton = document.getElementById('restart');
 
 let points = 0;
 let duration = 0;
@@ -11,8 +12,54 @@ let activeTimeoutId = null;
 let activeHole = null;
 let gameRunning = false;
 let currentDifficulty = 'normal';
+let audioReady = false;
 
 window.holes = holes;
+
+function initAudio() {
+    if (audioReady) return;
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const context = new AudioContext();
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
+    oscillator.type = 'triangle';
+    oscillator.frequency.value = 720;
+    gainNode.gain.value = 0.02;
+    oscillator.connect(gainNode);
+    gainNode.connect(context.destination);
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.05);
+    audioReady = true;
+}
+
+function playSound(type = 'hit') {
+    if (!audioReady) initAudio();
+    const AudioContext = window.AudioContext || window.webkitAudioContext;
+    if (!AudioContext) return;
+    const context = new AudioContext();
+    const oscillator = context.createOscillator();
+    const gainNode = context.createGain();
+    oscillator.connect(gainNode);
+    gainNode.connect(context.destination);
+
+    if (type === 'miss') {
+        oscillator.type = 'square';
+        oscillator.frequency.setValueAtTime(300, context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(180, context.currentTime + 0.15);
+        gainNode.gain.setValueAtTime(0.03, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.15);
+    } else {
+        oscillator.type = 'sine';
+        oscillator.frequency.setValueAtTime(900, context.currentTime);
+        oscillator.frequency.exponentialRampToValueAtTime(1100, context.currentTime + 0.1);
+        gainNode.gain.setValueAtTime(0.04, context.currentTime);
+        gainNode.gain.exponentialRampToValueAtTime(0.001, context.currentTime + 0.1);
+    }
+
+    oscillator.start();
+    oscillator.stop(context.currentTime + 0.15);
+}
 
 function randomInteger(min, max) {
     return Math.floor(Math.random() * (max - min + 1)) + min;
@@ -118,6 +165,17 @@ function startGame() {
     return 'game started';
 }
 
+function restartGame() {
+    gameRunning = false;
+    clearInterval(timerIntervalId);
+    clearTimeout(activeTimeoutId);
+    if (activeHole) {
+        activeHole.classList.remove('show');
+        activeHole = null;
+    }
+    startGame();
+}
+
 function gameOver() {
     gameRunning = false;
     clearInterval(timerIntervalId);
@@ -157,6 +215,9 @@ function whack(event) {
     if (activeHole && activeHole.classList.contains('show')) {
         activeHole.classList.remove('show');
         activeHole = null;
+        playSound('hit');
+    } else {
+        playSound('miss');
     }
 
     updateScore();
@@ -191,4 +252,5 @@ window.addEventListener('DOMContentLoaded', () => {
     setDuration(0);
     clearScore();
     setEventListeners();
+    document.body.addEventListener('pointerdown', initAudio, { once: true });
 });
