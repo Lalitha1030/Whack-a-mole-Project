@@ -150,6 +150,7 @@ function updateTimer() {
 
     if (duration <= 0) {
         clearInterval(timerIntervalId);
+        alert(`Game Over! Your score: ${points}`);
         gameOver();
     }
 }
@@ -185,7 +186,6 @@ function gameOver() {
         activeHole = null;
     }
     if (duration <= 0) {
-        alert(`Game Over! Final Score: ${points}`);
         return 'game stopped';
     }
     return showUp();
